@@ -1,83 +1,61 @@
-// Import necessary libraries
-const fs = require('fs');
-const sqlite3 = require('sqlite3').verbose();
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 
-// Connect to the database
-const db = new sqlite3.Database('files.db', (err) => {
-    if (err) {
-        console.error(err.message);
-    }
-    console.log('Connected to the files database.');
-});
+function UploadFile() {
+  const [file, setFile] = useState(null);
 
-// Create the table to store file information
-db.run(`
-    CREATE TABLE IF NOT EXISTS files (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        file_name TEXT,
-        file_path TEXT,
-        download_link TEXT
-    )
-`, (err) => {
-    if (err) {
-        console.error(err.message);
-    }
-    console.log('Files table created.');
-});
+  const handleFileUpload = (event) => {
+    setFile(event.target.files[0]);
+  };
 
-// Function to upload a file
-function uploadFile(filePath) {
-    // Get the file name from the file path
-    let fileName = filePath.split('/').pop();
+  const handleFileSubmit = (event) => {
+    event.preventDefault();
 
-    // Generate the download link for the file
-    let downloadLink = `http://localhost/files/${fileName}`;
+    const formData = new FormData();
+    formData.append('file', file);
 
-    // Insert the file information into the database
-    db.run(`
-        INSERT INTO files (file_name, file_path, download_link)
-        VALUES (?, ?, ?)
-    `, [fileName, filePath, downloadLink], (err) => {
-        if (err) {
-            console.error(err.message);
-        }
-        console.log(`File ${fileName} uploaded.`);
+    axios.post('http://localhost:3000/files', formData).then((response) => {
+      console.log(response.data);
     });
+  };
+
+  return (
+    <form onSubmit={handleFileSubmit}>
+      <input type="file" onChange={handleFileUpload} />
+      <button type="submit">Upload</button>
+    </form>
+  );
 }
 
-// Function to download a file
-function downloadFile(fileId, callback) {
-    // Get the file information from the database
-    db.get(`
-        SELECT file_path
-        FROM files
-        WHERE id = ?
-    `, [fileId], (err, row) => {
-        if (err) {
-            console.error(err.message);
-        }
+function DownloadFile({ fileId }) {
+  const [file, setFile] = useState(null);
 
-        // Return the file path for downloading
-        callback(row.file_path);
+  useEffect(() => {
+    axios.get(`http://localhost:3000/files/${fileId}`).then((response) => {
+      setFile(response.data);
     });
+  }, [fileId]);
+
+  return (
+    <div>
+      {file ? (
+        <a href={`http://localhost:3000/files/${file.fileName}`} download>
+          Download
+        </a>
+      ) : (
+        <p>Loading...</p>
+      )}
+    </div>
+  );
 }
 
-// Example usage
-uploadFile('/path/to/file.txt');
+function App() {
+  return (
+    <div>
+      <UploadFile />
+      <DownloadFile fileId={1} />
+    </div>
+  );
+}
 
-downloadFile(1, (filePath) => {
-    fs.readFile(filePath, 'utf8', (err, data) => {
-        if (err) {
-            console.error(err.message);
-        }
-        console.log(data);
-    });
-});
-
-// Close the database connection when done
-db.close((err) => {
-    if (err) {
-        console.error(err.message);
-    }
-    console.log('Closed the database connection.');
-});
+export default App;
